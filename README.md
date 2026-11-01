@@ -180,7 +180,7 @@ python scripts\comfy.py register my_t2i --source user:qwen_image_t2i_api.json `
 
 | 别名 | 链路 | 特点 | 依赖 |
 |---|---|---|---|
-| `ming` | Ming-3.0-tts **0.5B**，内置音色 | 拟真人、100+ 中文音色、45 kHz 级自然度，显存 ~2.5–2.8 GiB | `ComfyUI-Ming-3-tts` 节点 + 2.76 GiB 权重 |
+| `ming` | Ming-3.0-tts **0.5B**，内置音色 | 拟真人、100+ 中文音色、44.1 kHz 单声道，显存 ~2.5–2.8 GiB | `ComfyUI-Ming-3-tts` 节点 + 2.76 GiB 权重 |
 | `ming_clone` | 同上，**零样本音色克隆** | 给 10–30 s 真人录音 + 逐字转写，克隆该音色 | 同上 |
 | `tts` | Windows **SAPI**，离线 | 秒级、零显存、无模型；机器味，适合占位与调试 | 自建节点 `ComfyUI-LocalTTS-SAPI` |
 | `cosyvoice3` | CosyVoice3（TTS Audio Suite） | 多语种 / 方言 / 多角色对话 / SRT 时间轴 | 插件 + 5.2 GiB 权重 |
@@ -224,7 +224,7 @@ python scripts\comfy.py dub --text-file .\lesson02.txt --ref-audio .\voice\teach
 ```
 comfyui-named-runner/
 ├── scripts/
-│   ├── comfy.py                  # CLI 入口（11 个子命令）
+│   ├── comfy.py                  # CLI 入口（10 个子命令）
 │   ├── comfy_client.py           # 可复用的客户端库：配置/连接/转换/绑定/下载
 │   ├── selftest.py               # 分层自检：离线结构 / 离线转换 / 本机 TTS / --live 联调
 │   └── workflows/                # 随仓库分发的 API 格式工作流（api: 源）

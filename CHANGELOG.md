@@ -13,7 +13,7 @@
 ## [0.1.0] - 2026-11-01
 
 ### Added
-- **CLI**（`scripts/comfy.py`，11 个子命令）：`doctor`、`wait`、`list`、`describe`、`run`、`tts`、`dub`、`register`、`nodes`、`interrupt`。
+- **CLI**（`scripts/comfy.py`，10 个子命令）：`doctor`、`wait`、`list`、`describe`、`run`、`tts`、`dub`、`register`、`nodes`、`interrupt`。
 - **客户端库**（`scripts/comfy_client.py`，仅标准库）：配置合并、端口扫描与服务发现、提交/轮询/下载、UI→API 转换、参数绑定、产物收集。
 - **UI → API 转换器**：按 `/object_info` 顺序还原控件值，解析 `links`，处理 `mode=4` 旁通（按类型透传）、`mode=2` 静音（移除）、`Reroute` 穿透、`seed + 控制值` 双 token，忽略 Note/Primitive 节点；对子图与未安装节点类直接拒绝。
 - **别名机制**（`registry.json`）：`user:` / `api:` / `file:` 三种 source，显式绑定（`node` / `node_title` / `node_class` + `input`）与同名自动绑定，值类型转换，ComfyUI v3 带点号键名（如 `task.voice`）支持。
