@@ -1,0 +1,222 @@
+{
+  "workflows": {
+    "tts": {
+      "title": "中文文生语音（Windows SAPI，离线）",
+      "source": "user:tts_zh_sapi.json",
+      "params": {
+        "text": {
+          "node": "1",
+          "input": "text",
+          "type": "string"
+        },
+        "voice": {
+          "node": "1",
+          "input": "voice",
+          "type": "string"
+        },
+        "rate": {
+          "node": "1",
+          "input": "rate",
+          "type": "int"
+        },
+        "volume": {
+          "node": "1",
+          "input": "volume",
+          "type": "int"
+        },
+        "filename_prefix": {
+          "node": "2",
+          "input": "filename_prefix",
+          "type": "string"
+        }
+      },
+      "defaults": {
+        "voice": "auto",
+        "rate": 0,
+        "volume": 100,
+        "filename_prefix": "audio/tts"
+      }
+    },
+    "ming": {
+      "title": "拟真人配音·内置音色（Ming-3.0-tts 0.5B，无需参考音频）",
+      "source": "api:ming_dub_ip.json",
+      "params": {
+        "model": {
+          "node": "1",
+          "input": "model",
+          "type": "string"
+        },
+        "precision": {
+          "node": "1",
+          "input": "precision",
+          "type": "string"
+        },
+        "text": {
+          "node": "2",
+          "input": "text",
+          "type": "string"
+        },
+        "voice": {
+          "node": "2",
+          "input": "task.voice",
+          "type": "string"
+        },
+        "seed": {
+          "node": "2",
+          "input": "seed",
+          "type": "int"
+        },
+        "cfg": {
+          "node": "2",
+          "input": "cfg",
+          "type": "float"
+        },
+        "flow_steps": {
+          "node": "2",
+          "input": "flow_steps",
+          "type": "int"
+        },
+        "max_steps": {
+          "node": "2",
+          "input": "max_steps",
+          "type": "int"
+        },
+        "temperature": {
+          "node": "2",
+          "input": "temperature",
+          "type": "float"
+        },
+        "filename_prefix": {
+          "node": "3",
+          "input": "filename_prefix",
+          "type": "string"
+        },
+        "format": {
+          "node": "3",
+          "input": "format",
+          "type": "string"
+        }
+      },
+      "defaults": {
+        "model": "Ming-3.0-tts-0.5b",
+        "precision": "auto",
+        "voice": "灵小安",
+        "seed": 42,
+        "cfg": 2.0,
+        "flow_steps": 10,
+        "max_steps": 250,
+        "temperature": 0.0,
+        "filename_prefix": "ming_tts/dub",
+        "format": "flac"
+      }
+    },
+    "ming_clone": {
+      "title": "Ming-3 音色克隆（真人参考音频 + 逐字转写）",
+      "source": "api:ming_dub_clone.json",
+      "params": {
+        "audio": {
+          "node": "1",
+          "input": "audio"
+        },
+        "text": {
+          "node": "3",
+          "input": "text",
+          "type": "string"
+        },
+        "reference_text": {
+          "node": "3",
+          "input": "task.reference_text",
+          "type": "string"
+        },
+        "language": {
+          "node": "3",
+          "input": "task.language",
+          "type": "string"
+        },
+        "seed": {
+          "node": "3",
+          "input": "seed",
+          "type": "int"
+        },
+        "model": {
+          "node": "2",
+          "input": "model",
+          "type": "string"
+        },
+        "filename_prefix": {
+          "node": "4",
+          "input": "filename_prefix",
+          "type": "string"
+        }
+      },
+      "defaults": {
+        "language": "Chinese"
+      }
+    },
+    "ming_ip": {
+      "title": "Ming-3 内置音色（最小登记示例）",
+      "source": "api:ming_dub_ip.json",
+      "params": {
+        "text": {
+          "node": "2",
+          "input": "text"
+        }
+      },
+      "defaults": {}
+    },
+    "cosyvoice3": {
+      "title": "拟真人配音·CosyVoice3（TTS Audio Suite，多引擎备选）",
+      "source": "api:tts_cosyvoice3_dub.json",
+      "params": {
+        "audio": {
+          "node": "1",
+          "input": "audio",
+          "type": "string"
+        },
+        "reference_text": {
+          "node": "2",
+          "input": "reference_text",
+          "type": "string"
+        },
+        "model_path": {
+          "node": "3",
+          "input": "model_path",
+          "type": "string"
+        },
+        "speed": {
+          "node": "3",
+          "input": "speed",
+          "type": "float"
+        },
+        "instruct_text": {
+          "node": "3",
+          "input": "instruct_text",
+          "type": "string"
+        },
+        "text": {
+          "node": "4",
+          "input": "text",
+          "type": "string"
+        },
+        "seed": {
+          "node": "4",
+          "input": "seed",
+          "type": "int"
+        },
+        "filename_prefix": {
+          "node": "5",
+          "input": "filename_prefix",
+          "type": "string"
+        }
+      },
+      "defaults": {
+        "model_path": "Fun-CosyVoice3-0.5B-RL",
+        "speed": 1.0,
+        "instruct_text": "",
+        "reference_text": "",
+        "seed": 42,
+        "filename_prefix": "audio/dub"
+      }
+    }
+  }
+}

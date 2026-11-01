@@ -1,0 +1,29 @@
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+
+# ---- 本机配置与产物（含绝对路径，不入库）----
+config.json
+.comfyui-skill.json
+registry.json.bak
+comfy-out/
+*.tmp
+
+# ---- 生成物 ----
+*.wav
+*.flac
+*.mp3
+*.png
+*.jpg
+*.mp4
+!examples/**/*.png
+
+# ---- 编辑器 / 系统 ----
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

@@ -1,0 +1,82 @@
+{
+  "1": {
+    "class_type": "LoadAudio",
+    "inputs": {
+      "audio": "dub_ref.wav"
+    },
+    "_meta": {
+      "title": "参考音色（真人样本）"
+    }
+  },
+  "2": {
+    "class_type": "CharacterVoicesNode",
+    "inputs": {
+      "voice_name": "none",
+      "reference_text": "",
+      "trim_start": 0.0,
+      "trim_end": 0.0,
+      "customized": false,
+      "opt_audio_input": [
+        "1",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "音色参考（音频+原文）"
+    }
+  },
+  "3": {
+    "class_type": "CosyVoiceEngineNode",
+    "inputs": {
+      "model_path": "Fun-CosyVoice3-0.5B-RL",
+      "device": "auto",
+      "speed": 1.0,
+      "use_fp16": true,
+      "load_trt": false,
+      "load_vllm": false,
+      "instruct_text": ""
+    },
+    "_meta": {
+      "title": "CosyVoice3 引擎"
+    }
+  },
+  "4": {
+    "class_type": "UnifiedTTSTextNode",
+    "inputs": {
+      "TTS_engine": [
+        "3",
+        0
+      ],
+      "text": "",
+      "narrator_voice": "none",
+      "seed": 42,
+      "opt_narrator": [
+        "2",
+        0
+      ],
+      "enable_chunking": true,
+      "max_chars_per_chunk": 400,
+      "chunk_combination_method": "auto",
+      "silence_between_chunks_ms": 100,
+      "enable_audio_cache": true,
+      "batch_size": 0
+    },
+    "_meta": {
+      "title": "配音合成"
+    }
+  },
+  "5": {
+    "class_type": "SaveAudioAdvanced",
+    "inputs": {
+      "audio": [
+        "4",
+        0
+      ],
+      "filename_prefix": "audio/dub",
+      "format": "flac"
+    },
+    "_meta": {
+      "title": "保存音频"
+    }
+  }
+}

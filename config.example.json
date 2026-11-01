@@ -1,0 +1,14 @@
+{
+  "_comment": "复制为 config.json 后按本机修改；也可用 COMFY_URL / COMFYUI_ROOT 等环境变量覆盖。",
+  "base_url": "http://127.0.0.1:8188",
+  "port_scan": [8188, 8189, 8190, 8191, 8192],
+  "comfyui_root": "D:\\ComfyUI",
+  "workflows_dir": "D:\\ComfyUI\\user\\default\\workflows",
+  "output_dir": "D:\\ComfyUI\\output",
+  "input_dir": "D:\\ComfyUI\\input",
+  "python": "D:\\ComfyUI\\.venv\\Scripts\\python.exe",
+  "timeout_submit": 120,
+  "timeout_job": 1800,
+  "poll_interval": 1.5,
+  "client_id": "comfyui-named-runner"
+}

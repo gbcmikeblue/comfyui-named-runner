@@ -1,0 +1,50 @@
+{
+  "1": {
+    "class_type": "MingLoadModel",
+    "inputs": {
+      "model": "Ming-3.0-tts-0.5b",
+      "precision": "auto",
+      "device": "auto",
+      "download_if_missing": false
+    },
+    "_meta": {
+      "title": "Ming-3.0-tts 0.5B"
+    }
+  },
+  "2": {
+    "class_type": "MingGenerate",
+    "inputs": {
+      "model": [
+        "1",
+        0
+      ],
+      "text": "",
+      "task": "ip",
+      "task.voice": "灵小安",
+      "seed": 42,
+      "cfg": 2.0,
+      "flow_steps": 10,
+      "sigma": 0.25,
+      "temperature": 0.0,
+      "max_steps": 250,
+      "trim": true
+    },
+    "_meta": {
+      "title": "配音合成（内置音色）"
+    }
+  },
+  "3": {
+    "class_type": "SaveAudioAdvanced",
+    "inputs": {
+      "audio": [
+        "2",
+        0
+      ],
+      "filename_prefix": "ming_tts/dub",
+      "format": "flac"
+    },
+    "_meta": {
+      "title": "保存音频"
+    }
+  }
+}
