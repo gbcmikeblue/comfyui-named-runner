@@ -4,6 +4,22 @@
 
 ## [Unreleased]
 
+### Added
+- **图像链路（Qwen Image 2.1）**：新增 `t2i`（文本 → 图像）与 `i2i`（参考图 → 风格迁移 / 内容变换）两个子命令，随仓库分发 `scripts/workflows/qwen_image_2_1_t2i.json` / `qwen_image_2_1_i2i.json`（API 格式，避开官方模板的子图）。
+- `registry.json` 新增 `t2i` / `i2i` 别名：`prompt` / `negative_prompt` / `steps` / `cfg` / `seed` / `denoise` / `width`（t2i）/ `resolution`（i2i）/ `format.bit_depth` 等全部显式绑定到节点 id。
+- `doctor` 增加 `node:TextEncodeQwenImage21`、`node:QwenImage21Cache`（可选）与 `qwen_model:unet_name` / `clip_name` / `vae_name` 检查。
+- `selftest.py` 增加 L1 图像工作流、L2 文生图/图生图参数绑定（含 v3 动态下拉与 autogrow 的点号键）、L4 真实出图与图生图联调。
+- 新增 `docs/image.md`：两条链路的结构、模型变体、参数语义、实测性能与排错；`SKILL.md`、`docs/cli.md`、`docs/workflows.md`、中英文 README 同步更新。
+- 新增 `docs/qwen-image-prompting.md`：提示词写法汇总（官方 PE 重写规范的 8 步结构、编辑规范、固定句式、参数搭配、14 条误区），每条结论标注官方/社区/第三方来源与可信度。
+- 修正 `docs/image.md` 中负向提示词的描述：默认 `cfg=1` 时 ComfyUI 跳过负条件分支，`--negative-prompt` 实际不生效。
+
+### Changed
+- `docs/workflows.md` 补充 v3 动态输入（`COMFY_DYNAMICCOMBO_V3` → `format.bit_depth`、`COMFY_AUTOGROW_V3` → `images.image_1`）的绑定写法。
+- README（中/英）新增「平台支持」章节：三平台的环境要求、安装与配置差异、启动与运行方式、路径与命令行差异、换行符 / BOM / 权限等兼容性说明、各平台排错表、子命令 × 平台矩阵。
+
+### Fixed
+- `selftest.py` 在非 Windows 平台不再必然失败：`L3`（SAPI 合成）与 `--live` 的 TTS 三项改为标注 `SKIP` 跳过，其余检查（连接、配音、出图、图生图）照常执行。
+
 ### Planned
 - `uv` / `pipx` 安装入口，提供 `comfy-runner` 控制台脚本。
 - 批量任务清单（YAML / JSONL）与并发队列。

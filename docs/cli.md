@@ -97,6 +97,57 @@ python scripts\comfy.py doctor --json
 
 `ok` 在"没有取到任何文件也没有文本产物"时为 `false`——常见原因是工作流里没有 `Save*` 输出节点。
 
+## `t2i`
+
+文生图（Qwen Image 2.1）。等价于 `run t2i`，自动带上提示词、尺寸、采样与输出参数。
+
+| 参数 | 说明 |
+|---|---|
+| `PROMPT`（位置） | 正向提示词；给了 `--prompt-file` 时可省略 |
+| `--prompt-file PATH` | 从 UTF-8 文件读取提示词（整篇作为一个 `prompt` 值） |
+| `--negative-prompt TEXT` | 负向提示词，默认「模糊, 低质量, 过曝, 变形, 水印, 文字」 |
+| `--width` / `--height` | 输出尺寸，默认 1024×1024；Qwen 2.1 原生支持到 2048 |
+| `--batch` | 一次生成几张（`batch_size`），默认 1 |
+| `--steps` / `--cfg` / `--denoise` | 默认 25 / 1.0 / 1.0 |
+| `--sampler-name` / `--scheduler` | 默认 `euler` / `simple` |
+| `--seed` | 默认 42；只影响采样，便于复现 |
+| `--model` / `--clip` / `--vae` | 覆盖三个模型文件名（`unet_name` / `clip_name` / `vae_name`） |
+| `--format` / `--bit-depth` | 输出格式与位深，默认 `png` / `8-bit` |
+| `-p KEY=VALUE` | 直传 registry 里其它参数（如 `color_space=16-bit`） |
+| `--prefix` | 输出前缀，默认 `Qwen_image_2.1/t2i` |
+| `--workflow ALIAS` | 改走别的别名（默认 `t2i`） |
+| `--out` / `--timeout`（1800） / `--dry-run` / `--no-wait` / `--no-download` | 同 `run` |
+
+```powershell
+python scripts\comfy.py t2i "雨后的江南小巷，水彩，细节丰富" --width 1536 --height 864 --out .\图
+python scripts\comfy.py t2i --prompt-file .\prompt.txt --seed 7 --out .\图 --json
+```
+
+## `i2i`
+
+图生图 / 风格迁移（Qwen Image 2.1）。**必须给参考图**（`--image` 或 `-p image=<input 里已有的文件名>`），否则以 `param`（5）退出。
+
+| 参数 | 说明 |
+|---|---|
+| `PROMPT`（位置） | 改写指令，写「改成什么」而不是「画什么」 |
+| `--image PATH` | 本地参考图，自动上传到服务端 input 目录并绑定到 `image` 输入 |
+| `--resolution` | 参考图缩放预算，默认 1024；**输出尺寸按参考图比例由此推算** |
+| `--negative-prompt` / `--steps` / `--cfg` / `--denoise` / `--sampler-name` / `--scheduler` / `--seed` | 同上 |
+| `--model` / `--clip` / `--vae` / `--format` / `--bit-depth` / `--prefix` / `-p` | 同上 |
+| `--out` / `--timeout`（1800） / `--dry-run` / `--no-wait` / `--no-download` | 同 `run` |
+
+与 `t2i` 的两点差异：
+
+1. **没有 `--width/--height`**：采样 latent 取自编码节点输出的「参考图尺寸空 latent」，官方说明换成别的尺寸会让编辑偏离原图。
+2. `--image` 会走 `/upload/image`，产物前缀默认 `Qwen_image_2.1/i2i`。
+
+```powershell
+python scripts\comfy.py i2i "改成油画风格，笔触粗犷" --image .\photo.png --out .\图
+python scripts\comfy.py i2i "换成赛博朋克霓虹夜景" --image .\room.png --resolution 1536 --out .\图 --json
+```
+
+> 两条链路都基于 `api:qwen_image_2_1_t2i.json` / `api:qwen_image_2_1_i2i.json`（随仓库分发的 API 图）。想改节点结构就复制这两个文件改，再用 `register` 登记成新别名。
+
 ## `tts`
 
 文生语音的便捷封装，等价于 `run <--workflow>` 并自动带上 `text/voice/rate/volume/prefix`。

@@ -8,6 +8,8 @@
   list            列出已登记别名 + 可发现的工作流
   describe        查看某个工作流的节点、参数与产物
   run             按名称执行工作流（转换 UI→API、绑定参数、等结果、下载产物）
+  t2i             文生图（Qwen Image 2.1：文本 → 图像）
+  i2i             图生图（Qwen Image 2.1：参考图 → 风格迁移 / 内容变换）
   tts             便捷文生语音（TTS 工作流的封装）
   dub             拟真人配音 / 音色克隆（Ming-3.0-tts 0.5B）
   register        把已有工作流登记成别名
@@ -69,6 +71,20 @@ def _check_local_torch(python):
     return False, (err[-1][:200] if err else "import torch 失败")
 
 
+def _combo_options(oi, cls, field):
+    """取某节点某输入的下拉候选。
+
+    核心节点的模型清单有两种结构：`[["a","b"], {...}]`（如 UNETLoader.unet_name）
+    与 `["COMBO", {"options": [...]}]`（如 MingLoadModel.model），这里一并兼容。
+    """
+    spec = (((oi.get(cls) or {}).get("input") or {}).get("required") or {}).get(field) or []
+    if len(spec) > 1 and isinstance(spec[1], dict) and spec[1].get("options"):
+        return list(spec[1]["options"])
+    if spec and isinstance(spec[0], list):
+        return list(spec[0])
+    return []
+
+
 def cmd_doctor(args, cfg):
     checks = []
 
@@ -123,6 +139,8 @@ def cmd_doctor(args, cfg):
             oi = server.object_info()
             # 配音主链路（Ming-3.0-tts）必须有；SAPI 与 CosyVoice3 为可选后端
             for cls, required in (("MingLoadModel", True), ("MingGenerate", True),
+                                  ("TextEncodeQwenImage21", True),
+                                  ("QwenImage21Cache", False),
                                   ("LocalTTS_SAPI", False), ("CosyVoiceEngineNode", False)):
                 hit = cls in oi
                 if required and not hit:
@@ -137,6 +155,15 @@ def cmd_doctor(args, cfg):
             add("ming_model", has_05b,
                 ("可选模型：%s" % ", ".join(opts)) if opts else
                 "未发现 Ming 权重，放到 <models>/checkpoints/Ming-3.0-tts-0.5b/model.safetensors")
+            # 图像主链路（Qwen Image 2.1）：t2i / i2i 需要 unet / clip / vae 三件套
+            for cls, field, needle in (("UNETLoader", "unet_name", "qwen_image_2.1"),
+                                       ("CLIPLoader", "clip_name", "qwen3"),
+                                       ("VAELoader", "vae_name", "qwen_image_2.1_vae")):
+                cands = _combo_options(oi, cls, field)
+                hits = [c for c in cands if needle in str(c)]
+                add("qwen_model:" + field, bool(hits),
+                    ("可用：%s" % ", ".join(hits[:3])) if hits else
+                    "未发现含“%s”的模型（t2i/i2i 会提交失败）" % needle)
             add("node_count", True, str(len(oi)))
         except C.ComfyError as exc:
             add("object_info", False, exc.message)
@@ -457,6 +484,70 @@ def cmd_dub(args, cfg):
     return _run_workflow(args, cfg, workflow, C.parse_kv(args.set), outdir, title="拟真人配音")
 
 
+# ------------------------------------------------------------------ t2i / i2i
+def cmd_image(args, cfg, mode):
+    """文生图 / 图生图（Qwen Image 2.1）。
+
+    mode="t2i"：文本 → 图像；mode="i2i"：参考图 → 风格迁移 / 内容变换。
+    两者共用同一套采样与输出参数，差别只在有没有参考图、以及尺寸由谁决定。
+    """
+    text = args.prompt
+    if getattr(args, "prompt_file", None):
+        with open(args.prompt_file, "r", encoding="utf-8-sig") as f:
+            text = f.read()
+    if not text or not text.strip():
+        raise C.ComfyError("param", "缺少提示词（位置参数 PROMPT 或 --prompt-file）")
+
+    given = C.parse_kv(getattr(args, "set", None))
+    if mode == "i2i" and not args.image and "image" not in given:
+        raise C.ComfyError(
+            "param", "图生图需要输入图：--image <本地文件> 或 -p image=<input 目录里已有的文件名>",
+            hint="示例：comfy.py i2i \"改成水彩画风格\" --image .\\photo.png --out .\\out")
+
+    workflow = args.workflow or mode
+    params = {"prompt": text.strip()}
+    for key, value in (("negative_prompt", args.negative_prompt),
+                       ("resolution", getattr(args, "resolution", None)),
+                       ("seed", args.seed),
+                       ("steps", args.steps),
+                       ("cfg", args.cfg),
+                       ("sampler_name", args.sampler_name),
+                       ("scheduler", args.scheduler),
+                       ("denoise", args.denoise),
+                       ("unet_name", args.model),
+                       ("clip_name", args.clip),
+                       ("vae_name", args.vae),
+                       ("format", args.format),
+                       ("bit_depth", args.bit_depth),
+                       ("filename_prefix", args.prefix)):
+        if value is not None:
+            params[key] = value
+    if mode == "t2i":
+        for key, value in (("width", args.width), ("height", args.height),
+                           ("batch_size", getattr(args, "batch", None))):
+            if value is not None:
+                params[key] = value
+
+    args.set = ["%s=%s" % (k, v) for k, v in params.items() if k not in given]
+    args.input_image = args.image if mode == "i2i" else None
+    args.input_audio = None
+    args.dry_run = getattr(args, "dry_run", False)
+    args.no_wait = getattr(args, "no_wait", False)
+    args.no_download = getattr(args, "no_download", False)
+    outdir = args.out or os.path.join(os.getcwd(), "comfy-out")
+    return _run_workflow(args, cfg, workflow,
+                         C.parse_kv(args.set), outdir,
+                         title="文生图" if mode == "t2i" else "图生图")
+
+
+def cmd_t2i(args, cfg):
+    return cmd_image(args, cfg, "t2i")
+
+
+def cmd_i2i(args, cfg):
+    return cmd_image(args, cfg, "i2i")
+
+
 # ------------------------------------------------------------------ register
 def cmd_register(args, cfg):
     reg = C.load_registry()
@@ -626,6 +717,14 @@ def build_parser():
     d.add_argument("--no-download", action="store_true")
     d.set_defaults(fn=cmd_dub, input_image=None, input_audio=None)
 
+    t2i = sub.add_parser("t2i", help="文生图（Qwen Image 2.1）", parents=[common])
+    _add_image_args(t2i, "t2i")
+    t2i.set_defaults(fn=cmd_t2i, input_image=None, input_audio=None)
+
+    i2i = sub.add_parser("i2i", help="图生图 / 风格迁移（Qwen Image 2.1）", parents=[common])
+    _add_image_args(i2i, "i2i")
+    i2i.set_defaults(fn=cmd_i2i, input_image=None, input_audio=None)
+
     g = sub.add_parser("register", help="登记工作流别名", parents=[common])
     g.add_argument("alias")
     g.add_argument("--source", required=True, help="user:<相对路径> / api:<相对路径> / file:<绝对路径>")
@@ -642,6 +741,41 @@ def build_parser():
     i = sub.add_parser("interrupt", help="中断当前执行", parents=[common])
     i.set_defaults(fn=cmd_interrupt)
     return ap
+
+
+def _add_image_args(parser, mode):
+    """t2i / i2i 共用的参数集（尺寸、采样、输出）。"""
+    parser.add_argument("prompt", nargs="?", help="提示词（正向前缀）")
+    parser.add_argument("--prompt-file", help="从 UTF-8 文本文件读取提示词")
+    parser.add_argument("--negative-prompt", help="负向提示词")
+    parser.add_argument("-p", "--set", action="append", metavar="KEY=VALUE",
+                        help="直传 registry 里的其它参数（如 color_space=16-bit、-p unet_name=...），可重复")
+    if mode == "i2i":
+        parser.add_argument("--image", help="参考图（本地路径，自动上传到服务端 input 目录）")
+        parser.add_argument("--resolution", type=int,
+                            help="参考图缩放预算（默认 1024；输出尺寸按参考图比例由此推算）")
+    else:
+        parser.add_argument("--width", type=int, help="输出宽（默认 1024）")
+        parser.add_argument("--height", type=int, help="输出高（默认 1024）")
+        parser.add_argument("--batch", type=int, help="一次生成几张（默认 1）")
+    parser.add_argument("--steps", type=int, help="采样步数（默认 25）")
+    parser.add_argument("--cfg", type=float, help="引导强度（Qwen Image 2.1 默认 1.0）")
+    parser.add_argument("--sampler-name", dest="sampler_name", help="采样器（默认 euler）")
+    parser.add_argument("--scheduler", help="调度器（默认 simple）")
+    parser.add_argument("--denoise", type=float, help="去噪强度（默认 1.0）")
+    parser.add_argument("--seed", type=int, help="随机种子（默认 42）")
+    parser.add_argument("--model", help="扩散模型文件名（默认 qwen_image_2.1_int8_convrot.safetensors）")
+    parser.add_argument("--clip", help="文本/视觉编码器文件名（默认 qwen3vl_8b_int8_convrot.safetensors）")
+    parser.add_argument("--vae", help="VAE 文件名（默认 qwen_image_2.1_vae_bf16.safetensors）")
+    parser.add_argument("--format", help="输出格式（默认 png）")
+    parser.add_argument("--bit-depth", dest="bit_depth", help="位深（默认 8-bit）")
+    parser.add_argument("--prefix", help="ComfyUI 输出前缀")
+    parser.add_argument("--workflow", default=None, help="改走别的别名（默认 t2i / i2i）")
+    parser.add_argument("--out", help="产物目录（默认 ./comfy-out）")
+    parser.add_argument("--timeout", type=int, default=1800)
+    parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument("--no-wait", action="store_true")
+    parser.add_argument("--no-download", action="store_true")
 
 
 def main(argv=None):

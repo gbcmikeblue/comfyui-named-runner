@@ -217,6 +217,15 @@ def l1_offline(cfg):
             out.append("%s(%d 节点)" % (alias, len(data)))
         return "，".join(out)
 
+    def _image_sources():
+        out = []
+        for alias in ("t2i", "i2i"):
+            ref, data = C.resolve_workflow(alias, cfg)
+            assert C.is_api_format(data), "%s 不是 API 格式" % alias
+            assert ref["source"].startswith("api:"), ref["source"]
+            out.append("%s(%d 节点)" % (alias, len(data)))
+        return "，".join(out)
+
     def _workflows():
         ref, data = C.resolve_workflow("tts", cfg)
         assert ref["source"].startswith("user:"), ref["source"]
@@ -241,7 +250,7 @@ def l1_offline(cfg):
 
     ok = True
     for name, fn in (("registry", _registry), ("resolve tts", _workflows),
-                     ("配音工作流", _dub_sources),
+                     ("配音工作流", _dub_sources), ("图像工作流", _image_sources),
                      ("paths", _paths), ("cli list", _cli_list), ("discover", _discover)):
         ok = check("L1 " + name, fn) and ok
     return ok
@@ -346,16 +355,51 @@ def l2_convert(cfg):
         assert not warnings, warnings
         return "点号键 + 音频连线 OK"
 
+    def _t2i_bind():
+        ref, data = C.resolve_workflow("t2i", cfg)
+        prompt, _ = C.ui_to_api(data, {})
+        applied, warnings = C.bind_params(prompt, ref, {
+            "prompt": "自检文生图", "width": "512", "height": "384",
+            "seed": "7", "steps": "12"})
+        assert prompt["4"]["inputs"]["prompt"] == "自检文生图", prompt["4"]["inputs"]
+        assert prompt["5"]["inputs"]["width"] == 512, prompt["5"]["inputs"]
+        assert prompt["5"]["inputs"]["height"] == 384
+        assert prompt["6"]["inputs"]["seed"] == 7
+        assert prompt["6"]["inputs"]["steps"] == 12
+        # SaveImageAdvanced 的动态下拉子输入在 API 里是扁平点号键
+        assert prompt["8"]["inputs"]["format.bit_depth"] == "8-bit", prompt["8"]["inputs"]
+        assert not warnings, warnings
+        return "prompt/尺寸/seed/点号键 OK"
+
+    def _i2i_bind():
+        ref, data = C.resolve_workflow("i2i", cfg)
+        prompt, _ = C.ui_to_api(data, {})
+        applied, warnings = C.bind_params(prompt, ref, {"prompt": "改成水彩", "image": "photo.png"})
+        assert prompt["4"]["inputs"]["image"] == "photo.png", prompt["4"]["inputs"]
+        # 参考图连线到 TextEncode 的 autogrow 输入（扁平点号键）
+        assert prompt["5"]["inputs"]["images.image_1"] == ["4", 0], prompt["5"]["inputs"]
+        # 采样 latent 取自参考图尺寸，而不是另一张空画布
+        assert prompt["6"]["inputs"]["latent_image"] == ["5", 2], prompt["6"]["inputs"]
+        assert not warnings, warnings
+        return "参考图上传位 + 参考图 latent OK"
+
     ok = True
     for name, fn in (("tts 转换", _tts_convert), ("参数绑定", _tts_bind),
                      ("未知参数报错", _tts_bad_param), ("复杂图转换", _convert_hard),
                      ("CLI dry-run", _cli_dry_run), ("CLI describe", _cli_describe),
-                     ("Ming 内置音色绑定", _ming_bind), ("Ming 克隆绑定", _ming_clone_bind)):
+                     ("Ming 内置音色绑定", _ming_bind), ("Ming 克隆绑定", _ming_clone_bind),
+                     ("Qwen 文生图绑定", _t2i_bind), ("Qwen 图生图绑定", _i2i_bind)):
         ok = check("L2 " + name, fn) and ok
     return ok
 
 
 def l3_tts(cfg):
+    if os.name != "nt":
+        # SAPI5 与 powershell.exe 只在 Windows 存在；其余平台的语音能力走 ming / cosyvoice3
+        RESULTS.append((True, "L3 本机 TTS",
+                        "跳过：Windows SAPI 专属（当前平台 %s）" % sys.platform))
+        return True
+
     node_dir = os.path.join(cfg["comfyui_root"], "custom_nodes", "ComfyUI-LocalTTS-SAPI")
     ps1 = os.path.join(node_dir, "sapi_tts.ps1")
 
@@ -445,10 +489,62 @@ def l4_live(cfg, base_url=None):
             return "%s (%.1fKB, %.1fs)" % (os.path.basename(files[0]["path"]),
                                            files[0]["bytes"] / 1024.0, data["elapsed_sec"])
 
+    def _qwen_nodes():
+        oi = server.object_info()
+        assert "TextEncodeQwenImage21" in oi, "TextEncodeQwenImage21 未加载（需 ComfyUI 0.4x+）"
+        cands = [c for c in ((oi["UNETLoader"]["input"]["required"].get("unet_name") or [None])[0] or [])
+                 if "qwen_image_2.1" in str(c)]
+        assert cands, "未发现 qwen_image_2.1 扩散模型权重"
+        vaes = [c for c in ((oi["VAELoader"]["input"]["required"].get("vae_name") or [None])[0] or [])
+                if "qwen_image_2.1_vae" in str(c)]
+        assert vaes, "未发现 qwen_image_2.1 VAE"
+        return "模型 %s ｜ VAE %s" % (", ".join(cands[:2]), ", ".join(vaes[:1]))
+
+    def _run_t2i():
+        with tempfile.TemporaryDirectory() as tmp:
+            out = _run_cli(["t2i", "自检文生图：一只橘猫坐在窗台上", "--width", "256",
+                            "--height", "256", "--steps", "4", "--out", tmp, "--json"], base_url=base)
+            data = json.loads(out)
+            assert data["ok"], data
+            files = [f for f in data["files"] if f["kind"] in ("images", "image")]
+            assert files and files[0]["bytes"] > 1000, data["files"]
+            return "%s (%.1fKB, %.1fs)" % (os.path.basename(files[0]["path"]),
+                                           files[0]["bytes"] / 1024.0, data["elapsed_sec"])
+
+    def _run_i2i():
+        with tempfile.TemporaryDirectory() as tmp:
+            first = json.loads(_run_cli(["t2i", "自检图生图的输入底图：窗台上的橘猫", "--width", "256",
+                                         "--height", "256", "--steps", "4", "--out", tmp, "--json"],
+                                        base_url=base))
+            assert first["ok"], first
+            src = [f for f in first["files"] if f["kind"] in ("images", "image")][0]["path"]
+            second = json.loads(_run_cli(["i2i", "改成铅笔素描风格", "--image", src,
+                                          "--resolution", "256", "--steps", "4",
+                                          "--out", tmp, "--json"], base_url=base))
+            assert second["ok"], second
+            files = [f for f in second["files"] if f["kind"] in ("images", "image")]
+            assert files and files[0]["bytes"] > 1000, second["files"]
+            return "%s (%.1fKB, %.1fs)" % (os.path.basename(files[0]["path"]),
+                                           files[0]["bytes"] / 1024.0, second["elapsed_sec"])
+
+    def _nodes_total():
+        oi = server.object_info()
+        assert oi, "object_info 为空"
+        return "共 %d 个节点类" % len(oi)
+
+    plan = [("连接服务", _connect)]
+    if os.name == "nt":
+        plan += [("TTS 节点", _node_present), ("schema 一致", _schema_drift), ("执行 TTS", _run_tts)]
+    else:
+        plan += [("节点总览", _nodes_total)]
+        RESULTS.append((True, "L4 TTS 链路",
+                        "跳过：Windows SAPI 专属（当前平台 %s）" % sys.platform))
+    plan += [("Ming 节点", _ming_nodes), ("执行配音", _run_dub),
+             ("Qwen 节点", _qwen_nodes), ("执行文生图", _run_t2i),
+             ("执行图生图", _run_i2i)]
+
     ok = True
-    for name, fn in (("连接服务", _connect), ("TTS 节点", _node_present),
-                     ("schema 一致", _schema_drift), ("执行 TTS", _run_tts),
-                     ("Ming 节点", _ming_nodes), ("执行配音", _run_dub)):
+    for name, fn in plan:
         ok = check("L4 " + name, fn) and ok
     return ok
 
@@ -486,7 +582,8 @@ def main():
 
     print("comfyui-local 自检 %s（%.1fs）" % ("通过" if ok else "失败", time.time() - t0))
     for good, name, detail in RESULTS:
-        print("  %s %-24s %s" % ("PASS" if good else "FAIL", name, detail))
+        tag = "SKIP" if detail.startswith("跳过") else ("PASS" if good else "FAIL")
+        print("  %s %-24s %s" % (tag, name, detail))
     if not args.live:
         print("\n提示：服务启动后用 `python scripts/selftest.py --live` 做真实联调。")
     return 0 if ok else 1

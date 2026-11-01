@@ -18,6 +18,8 @@
 | 服务状态 | **必须已经启动**——本工具不启动、不重启、不关闭服务 |
 | 网络 | 只需要能访问 `127.0.0.1:<port>`，不出网 |
 
+> 本篇命令以 Windows PowerShell 为例。macOS / Linux 的差异（`python3`、`chmod +x`、`venv/` 与 `.venv/`、SAPI 不可用、换行符与 BOM）见 README 的 [平台支持](../README.md#平台支持windows--macos--linux)。
+
 > 手动启动 ComfyUI 时务必用**带 torch 的那个 Python**。ComfyUI Desktop 的实际运行环境通常是 `<root>\.venv\Scripts\python.exe`，而 `<install>\standalone-env` 只是引导环境（没有 torch），用它启动会失败。同时只跑一个实例：Desktop 的 Launch 与命令行启动并存会互相抢显存。
 
 ## 2. 安装
@@ -82,7 +84,7 @@ python scripts\comfy.py run <别名> --out .\out --json
 | `torch` | 运行环境能 `import torch` | 是否用错了 Python（见上文） |
 | `registry` | 别名可解析 | 工作流是否被改名/另存，`list` 会标 `[文件缺失]` |
 
-判定"能用了"的标准：`doctor --json` 里 `server` 与关键 `node:*` / `model:*` 为 `true`；`run`/`dub` 的 `--json` 输出 `ok=true`，`files[].bytes > 0`，产物可被播放器/查看器正常打开。
+判定"能用了"的标准：`doctor --json` 里 `server`、关键 `node:*` / `model:*`（图像链路看 `node:TextEncodeQwenImage21` 与 `qwen_model:*`）为 `true`；`run`/`t2i`/`i2i`/`dub` 的 `--json` 输出 `ok=true`，`files[].bytes > 0`，产物可被播放器/查看器正常打开。
 
 ## 4. 真实联调（可选）
 
@@ -90,7 +92,7 @@ python scripts\comfy.py run <别名> --out .\out --json
 python scripts\selftest.py --live
 ```
 
-追加三件事：比对本机真实 `/object_info` 与内置合成 schema 的字段差异、执行一次 SAPI TTS、校验产物能被正确收集。
+追加这些事：比对本机真实 `/object_info` 与内置合成 schema 的字段差异、执行一次 SAPI TTS、一次拟真人配音、一次文生图、一次图生图，并校验产物能被正确收集。
 
 ## 5. 升级与卸载
 

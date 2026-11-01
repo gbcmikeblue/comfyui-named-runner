@@ -1,5 +1,234 @@
 {
   "workflows": {
+    "t2i": {
+      "title": "文生图（Qwen Image 2.1，文本→图像）",
+      "source": "api:qwen_image_2_1_t2i.json",
+      "params": {
+        "prompt": {
+          "node": "4",
+          "input": "prompt",
+          "type": "string"
+        },
+        "negative_prompt": {
+          "node": "4",
+          "input": "negative_prompt",
+          "type": "string"
+        },
+        "resolution": {
+          "node": "4",
+          "input": "resolution",
+          "type": "int"
+        },
+        "width": {
+          "node": "5",
+          "input": "width",
+          "type": "int"
+        },
+        "height": {
+          "node": "5",
+          "input": "height",
+          "type": "int"
+        },
+        "batch_size": {
+          "node": "5",
+          "input": "batch_size",
+          "type": "int"
+        },
+        "seed": {
+          "node": "6",
+          "input": "seed",
+          "type": "int"
+        },
+        "steps": {
+          "node": "6",
+          "input": "steps",
+          "type": "int"
+        },
+        "cfg": {
+          "node": "6",
+          "input": "cfg",
+          "type": "float"
+        },
+        "sampler_name": {
+          "node": "6",
+          "input": "sampler_name",
+          "type": "string"
+        },
+        "scheduler": {
+          "node": "6",
+          "input": "scheduler",
+          "type": "string"
+        },
+        "denoise": {
+          "node": "6",
+          "input": "denoise",
+          "type": "float"
+        },
+        "unet_name": {
+          "node": "1",
+          "input": "unet_name",
+          "type": "string"
+        },
+        "clip_name": {
+          "node": "2",
+          "input": "clip_name",
+          "type": "string"
+        },
+        "vae_name": {
+          "node": "3",
+          "input": "vae_name",
+          "type": "string"
+        },
+        "filename_prefix": {
+          "node": "8",
+          "input": "filename_prefix",
+          "type": "string"
+        },
+        "format": {
+          "node": "8",
+          "input": "format",
+          "type": "string"
+        },
+        "bit_depth": {
+          "node": "8",
+          "input": "format.bit_depth",
+          "type": "string"
+        },
+        "color_space": {
+          "node": "8",
+          "input": "format.input_color_space",
+          "type": "string"
+        }
+      },
+      "defaults": {
+        "unet_name": "qwen_image_2.1_int8_convrot.safetensors",
+        "clip_name": "qwen3vl_8b_int8_convrot.safetensors",
+        "vae_name": "qwen_image_2.1_vae_bf16.safetensors",
+        "negative_prompt": "模糊, 低质量, 过曝, 变形, 水印, 文字",
+        "resolution": 1024,
+        "width": 1024,
+        "height": 1024,
+        "batch_size": 1,
+        "seed": 42,
+        "steps": 25,
+        "cfg": 1.0,
+        "sampler_name": "euler",
+        "scheduler": "simple",
+        "denoise": 1.0,
+        "filename_prefix": "Qwen_image_2.1/t2i",
+        "format": "png",
+        "bit_depth": "8-bit",
+        "color_space": "sRGB"
+      }
+    },
+    "i2i": {
+      "title": "图生图（Qwen Image 2.1，参考图改绘 / 风格迁移）",
+      "source": "api:qwen_image_2_1_i2i.json",
+      "params": {
+        "image": {
+          "node": "4",
+          "input": "image",
+          "type": "string"
+        },
+        "prompt": {
+          "node": "5",
+          "input": "prompt",
+          "type": "string"
+        },
+        "negative_prompt": {
+          "node": "5",
+          "input": "negative_prompt",
+          "type": "string"
+        },
+        "resolution": {
+          "node": "5",
+          "input": "resolution",
+          "type": "int"
+        },
+        "seed": {
+          "node": "6",
+          "input": "seed",
+          "type": "int"
+        },
+        "steps": {
+          "node": "6",
+          "input": "steps",
+          "type": "int"
+        },
+        "cfg": {
+          "node": "6",
+          "input": "cfg",
+          "type": "float"
+        },
+        "sampler_name": {
+          "node": "6",
+          "input": "sampler_name",
+          "type": "string"
+        },
+        "scheduler": {
+          "node": "6",
+          "input": "scheduler",
+          "type": "string"
+        },
+        "denoise": {
+          "node": "6",
+          "input": "denoise",
+          "type": "float"
+        },
+        "unet_name": {
+          "node": "1",
+          "input": "unet_name",
+          "type": "string"
+        },
+        "clip_name": {
+          "node": "2",
+          "input": "clip_name",
+          "type": "string"
+        },
+        "vae_name": {
+          "node": "3",
+          "input": "vae_name",
+          "type": "string"
+        },
+        "filename_prefix": {
+          "node": "8",
+          "input": "filename_prefix",
+          "type": "string"
+        },
+        "format": {
+          "node": "8",
+          "input": "format",
+          "type": "string"
+        },
+        "bit_depth": {
+          "node": "8",
+          "input": "format.bit_depth",
+          "type": "string"
+        },
+        "color_space": {
+          "node": "8",
+          "input": "format.input_color_space",
+          "type": "string"
+        }
+      },
+      "defaults": {
+        "unet_name": "qwen_image_2.1_int8_convrot.safetensors",
+        "clip_name": "qwen3vl_8b_int8_convrot.safetensors",
+        "vae_name": "qwen_image_2.1_vae_bf16.safetensors",
+        "negative_prompt": "模糊, 低质量, 过曝, 变形, 水印, 文字",
+        "resolution": 1024,
+        "seed": 42,
+        "steps": 25,
+        "cfg": 1.0,
+        "sampler_name": "euler",
+        "scheduler": "simple",
+        "denoise": 1.0,
+        "filename_prefix": "Qwen_image_2.1/i2i",
+        "format": "png",
+        "bit_depth": "8-bit",
+        "color_space": "sRGB"
+      }
+    },
     "tts": {
       "title": "中文文生语音（Windows SAPI，离线）",
       "source": "user:tts_zh_sapi.json",

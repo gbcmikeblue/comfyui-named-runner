@@ -5,8 +5,9 @@
 一个零依赖（只用 Python 标准库）的命令行工具 + Python 客户端库：你不需要每次都打开 ComfyUI 网页、拖节点、点 Run，也不需要自己拼 `POST /prompt` 的 API 图。工作流仍然在 ComfyUI 的图形界面里搭（或直接用别人导出的 API 图），然后在命令行里用一个**别名**调用它。
 
 ```powershell
+python scripts\comfy.py t2i "雨后的江南小巷，水彩" --width 1536 --height 864 --out .\图
+python scripts\comfy.py i2i "改成油画风格" --image .\photo.png --out .\图
 python scripts\comfy.py dub "弯弯的月儿小小的船。" --voice 灵小安 --out .\配音
-python scripts\comfy.py run my_t2i -p prompt="雨后的江南小巷" --out .\图
 ```
 
 ---
@@ -16,8 +17,10 @@ python scripts\comfy.py run my_t2i -p prompt="雨后的江南小巷" --out .\图
 - [它解决什么问题](#它解决什么问题)
 - [特性](#特性)
 - [快速开始](#快速开始)
+- [平台支持（Windows / macOS / Linux）](#平台支持windows--macos--linux)
 - [命令速查](#命令速查)
 - [工作流别名机制](#工作流别名机制)
+- [图像能力](#图像能力)
 - [语音能力](#语音能力)
 - [退出码与错误模型](#退出码与错误模型)
 - [项目结构](#项目结构)
@@ -40,6 +43,7 @@ ComfyUI 把「画工作流」做得很舒服，把「批量、脚本化、被其
 | 换了机器 / 端口被占用，脚本全挂 | 端口扫描（8188–8192）+ `doctor` 体检 + 分阶段退出码 |
 | 想把 ComfyUI 塞进构建流水线，但输出全是人看的 | 全部命令支持 `--json`，stdout/stderr 结构化，可直接被其他程序解析 |
 | 语音合成要 5 GB 环境才能试一下 | 内置「拟真人配音」与「离线 SAPI 兜底」两条链路，前者 0.5B 权重即可跑 |
+| 换一个出图模型就得重搭一遍图、重写一遍脚本 | 内置「文生图 / 图生图」两条 Qwen Image 2.1 链路，参数与调用方式统一 |
 
 **边界**：本工具**不启动、不重启、不关闭** ComfyUI。服务由你自己启动（ComfyUI Desktop 点 Launch，或命令行 `main.py`），本工具只负责发现端口、连接、提交与取回。
 
@@ -54,9 +58,12 @@ ComfyUI 把「画工作流」做得很舒服，把「批量、脚本化、被其
 - **可诊断**：`doctor` 一次性检查服务、端口、节点类、模型权重、torch 环境、registry 完整性。
 - **零第三方依赖**：只用标准库，Python 3.9+；不需要 `pip install` 任何东西。
 - **错误可编程**：7 个阶段 × 独立退出码，`--json` 时输出单行机器可读错误。
+- **自带图像链路**：文生图 `t2i` 与图生图 `i2i`（Qwen Image 2.1），参数统一、图生图自动跟随参考图比例、产物自动落盘。
 - **自带语音链路**：拟真人配音（Ming-3.0-tts 0.5B，内置音色 / 音色克隆）、离线 SAPI 兜底、CosyVoice3 多引擎备选。
 
 ## 快速开始
+
+> 下面的命令以 **Windows PowerShell** 为例；macOS / Linux 只需把 `python` 换成 `python3`、`\` 换成 `/`、`Copy-Item` 换成 `cp`。逐平台的完整步骤见 [平台支持](#平台支持windows--macos--linux)。
 
 ### 1. 准备 ComfyUI
 
@@ -117,6 +124,223 @@ python scripts\comfy.py run my_t2i `
  "text_outputs": {}, "applied": {"prompt": "...", "seed": 12345}}
 ```
 
+## 平台支持（Windows / macOS / Linux）
+
+本工具**只用 Python 标准库**，本身是跨平台的：Windows / macOS / Linux 都能跑，代码里不写死任何平台路径。真正的差异集中在「Python 命令名、ComfyUI 的目录布局、平台独占的语音后端、Shell 语法」四件事上。
+
+### 1. 能力总览
+
+| 项 | Windows | macOS | Linux |
+|---|---|---|---|
+| Python 命令 | `python`（或 `py -3`） | `python3` | `python3` |
+| 内置脚本 | 全部可用 | 除 `tts`（SAPI）外全部可用 | 除 `tts`（SAPI）外全部可用 |
+| `tts` 子命令（离线 SAPI5） | ✅（需装 `ComfyUI-LocalTTS-SAPI`） | ❌ 平台无 SAPI5 | ❌ 平台无 SAPI5 |
+| `dub` / `ming` / `ming_clone` | ✅ | ✅ | ✅ |
+| `t2i` / `i2i` | ✅ | ✅ | ✅ |
+| `cosyvoice3` | ✅ | ✅（取决于该节点的实现） | ✅（取决于该节点的实现） |
+| 示例脚本 `examples/*.ps1` | PowerShell 5.1 自带 | 需装 **PowerShell 7**（`pwsh`） | 需装 **PowerShell 7**（`pwsh`） |
+| 可执行位 / shebang | 不适用 | 需 `chmod +x` | 需 `chmod +x` |
+| 路径分隔符 | `\`（也可用 `/`） | `/` | `/` |
+
+> 三平台的出图/配音能力来自 ComfyUI 侧的节点与权重，与本工具无关；只要那台 ComfyUI 能出图，本工具就能调。
+
+### 2. 系统环境与前置依赖
+
+| 项 | 要求 | Windows | macOS | Linux |
+|---|---|---|---|---|
+| 系统 | —— | Windows 10 1809+ / 11 | macOS 12+（Intel 或 Apple Silicon） | 主流发行版（glibc） |
+| Python | **3.9+，无第三方依赖** | [python.org](https://www.python.org/downloads/) 装并勾选 *Add python.exe to PATH*；Microsoft Store 版路径有坑（见 §7） | 系统 `python3`（Xcode CLT 提供，3.9）即可；也可 `brew install python@3.12` | 系统 `python3`；Debian/Ubuntu 需 `sudo apt install python3 python3-venv` |
+| ComfyUI | 已启动、能出图 | Desktop 或 portable（`run_nvidia_gpu.bat`） | Desktop 或手动 `python3 main.py` | 手动 `python3 main.py` / Docker / systemd |
+| 网络 | 只需访问 `127.0.0.1:<port>` | 默认防火墙不拦回环 | 首次运行可能弹"允许接受传入连接"，选允许 | 无 |
+| Shell | 有其一即可 | PowerShell 5.1（自带）/ 7 / cmd | zsh（默认）/ bash | bash / zsh |
+
+### 3. 安装与配置
+
+**Windows（PowerShell）**
+
+```powershell
+git clone https://github.com/<your-name>/comfyui-named-runner.git D:\tools\comfyui-named-runner
+cd D:\tools\comfyui-named-runner
+Copy-Item config.example.json config.json
+notepad config.json
+python scripts\comfy.py doctor
+```
+
+**macOS / Linux（bash 或 zsh，两者命令相同）**
+
+```bash
+git clone https://github.com/<your-name>/comfyui-named-runner.git ~/tools/comfyui-named-runner
+cd ~/tools/comfyui-named-runner
+cp config.example.json config.json
+$EDITOR config.json
+chmod +x scripts/comfy.py scripts/selftest.py        # 之后可直接 ./scripts/comfy.py
+python3 scripts/comfy.py doctor
+```
+
+`config.json` 在各平台的写法差异（**JSON 里路径分隔符用 `/` 更省事，Windows 也认**）：
+
+| 字段 | Windows | macOS / Linux |
+|---|---|---|
+| `comfyui_root` | `"D:/ComfyUI"` 或 `"D:\\\\ComfyUI"` | `"/Users/me/ComfyUI"` |
+| `workflows_dir` | `"<root>/user/default/workflows"`（Desktop 常指向用户数据目录，见下） | 同左 |
+| `python` | `"<root>/.venv/Scripts/python.exe"` | `"<root>/.venv/bin/python"` 或 `"<root>/venv/bin/python"` |
+
+**`python` 字段是唯一必须手动确认的跨平台项**：程序会按顺序探测 `<root>/.venv/Scripts/python.exe`（Windows Desktop）、`<root>/.venv/bin/python`、`<root>/../standalone-env/python.exe`，**但 ComfyUI 官方手动安装用的是 `venv/`（没有点）**，探测不到 → 留空也能跑（只是 `doctor` 跳过本地 torch 检查），想让它检查就显式写上路径。
+
+ComfyUI Desktop 的用户数据目录跟随系统约定（**以 `doctor` 打印的实际路径为准**）：
+
+| 平台 | 典型位置 |
+|---|---|
+| Windows | `%APPDATA%\ComfyUI`（模型常被 `extra_model_paths` 指到别处） |
+| macOS | `~/Library/Application Support/ComfyUI` |
+| Linux | `~/.config/ComfyUI` |
+
+环境变量写法也不同：
+
+```powershell
+# Windows PowerShell（只影响当前窗口）
+$env:COMFY_URL = "http://127.0.0.1:8188"
+$env:COMFYUI_ROOT = "D:\ComfyUI"
+```
+
+```bash
+# macOS / Linux（只影响当前 shell）
+export COMFY_URL="http://127.0.0.1:8188"
+export COMFYUI_ROOT="$HOME/ComfyUI"
+```
+
+永久化：Windows 写 `$PROFILE`；bash 写 `~/.bashrc`；zsh（macOS 默认）写 `~/.zshrc`。
+
+### 4. 启动与运行
+
+ComfyUI 由你手动启动（本工具**不启动、不重启、不关闭**服务）：
+
+| 平台 | 启动方式 |
+|---|---|
+| Windows | Desktop 点 Launch；portable 包双击 `run_nvidia_gpu.bat`；手动 `python main.py`（必须是带 torch 的环境） |
+| macOS | `cd ~/ComfyUI && python3 main.py`（Apple Silicon 自动走 MPS） |
+| Linux | `cd ~/ComfyUI && python3 main.py --listen 127.0.0.1`；或 `systemctl --user start comfyui` / `docker compose up -d` |
+
+然后在本项目目录跑：
+
+```powershell
+# Windows
+python scripts\comfy.py doctor
+python scripts\comfy.py t2i "雨后的江南小巷，水彩" --width 1536 --height 864 --out .\图
+```
+
+```bash
+# macOS / Linux
+python3 scripts/comfy.py doctor
+python3 scripts/comfy.py t2i "雨后的江南小巷，水彩" --width 1536 --height 864 --out ./图
+# 已 chmod +x 时：
+./scripts/comfy.py doctor
+```
+
+后台/长任务：
+
+| 场景 | Windows | macOS / Linux |
+|---|---|---|
+| 跑批不占终端 | `Start-Process python -ArgumentList 'scripts\comfy.py','run','name'` | `nohup ./scripts/comfy.py run name > run.log 2>&1 &` 或 `tmux` |
+| 定时/开机自启 | 任务计划程序 | `cron` / `systemd` timer |
+
+`--out` 缺省是**当前工作目录下的 `comfy-out`**（三平台一致）；产物通过 HTTP `/view` 下载，所以 ComfyUI 跑在容器/远程机上也能取回文件。
+
+### 5. 路径与命令行差异（逐条对照）
+
+| 事项 | Windows | macOS / Linux |
+|---|---|---|
+| 路径分隔符（命令行） | `scripts\comfy.py`；用 `/` 也接受 | `scripts/comfy.py` |
+| 路径分隔符（配置文件） | 写 `/` 最省事，写 `\` 需在 JSON 里转义成 `\\` | `/` |
+| 续行符 | 反引号 `` ` ``（PowerShell）或 `^`（cmd） | 反斜杠 `\` |
+| 引号 | 单引号=字面、双引号=插值（PS） | 单引号=字面、双引号=插值（bash） |
+| 反斜杠转义 | 不转义（`.\图` 就是本意） | 双引号内 `\` 会转义，路径尽量用单引号或不用引号 |
+| 环境变量赋值 | `$env:X = "v"` | `export X=v` |
+| `~` 展开 | 字符串里的 `~` **不会**展开，用 `$env:USERPROFILE` | 会展开 |
+| 大小写 | 路径不区分大小写 | **区分大小写**（`User/` ≠ `user/`；工作流文件名保持原样） |
+| 中文路径 | 支持；含空格时用引号 | 支持（文件系统 UTF-8） |
+| 中文提示词 | 直接在参数里写没问题；避免用**全角引号**当 shell 引号 | 同左，单引号包裹最稳 |
+| 端口排查 | `netstat -ano \| findstr :8188`，再 `taskkill /PID <pid> /F` | `lsof -nP -iTCP:8188 -sTCP:LISTEN`，再 `kill <pid>` |
+| Python 命令 | `python` / `py -3` | `python3`（多数发行版没有 `python` 别名） |
+
+> `-p` 传值的通用建议：**值里带空格或中文时加引号**，如 `-p prompt="雨后的江南小巷"`；含 `=` 时只切第一个 `=`，不必额外转义。
+
+### 6. 跨平台兼容性说明
+
+**换行符**
+
+- 仓库索引里存的是 **LF**；是否在工作区变成 CRLF 取决于各自的 `core.autocrlf`（Windows 常见 `true` → CRLF，Linux/macOS 默认 `false`/`input` → LF）。**仓库没有 `.gitattributes`**，所以请用 `git clone` 而不是直接拷贝目录跨平台传输。
+- Unix 上如果看到 `bad interpreter: No such file or directory` 或 `python3\r`，就是 `.py` 被 CRLF 污染（`#!/usr/bin/env python3\r`）：
+  ```bash
+  sed -i 's/\r$//' scripts/comfy.py scripts/selftest.py   # 或 git config core.autocrlf input && git checkout -- .
+  ```
+- 反向：把 Windows 上的 `.ps1` 拷到 Linux 用 `pwsh` 跑一般没问题，但仍建议 `dos2unix`。
+
+**编码**
+
+- 所有 JSON / 文本按 UTF-8 读写（配置读取用 `utf-8-sig`，带 BOM 也能读）。
+- **`.ps1` 必须是 UTF-8 with BOM**：Windows PowerShell 5.1 对无 BOM 的 UTF-8 按 ANSI 解析，中文注释与字符串会乱码甚至语法报错（`examples/*.ps1` 已带 BOM）。PowerShell 7 / `pwsh` 无此问题。
+- Windows 控制台中文输出异常时：`chcp 65001`，或 `$env:PYTHONIOENCODING="utf-8"`（本工具内部已对 stdout 做 UTF-8 重配置，通常不必手动设）。
+
+**权限**
+
+- Unix 上 `chmod +x` 才能 `./scripts/comfy.py`；用 zip 下载会丢执行位，用 `git clone` 最稳。
+- **不要用 `sudo` / root 跑**：产物属主会变成 root，之后你自己反而删不掉；ComfyUI 的输出目录也需要可写。
+- macOS 首次打开 ComfyUI Desktop 可能被"隐私与安全性"拦一次，允许后即可。
+
+**路径长度与符号链接**
+
+- Windows 默认 260 字符上限：把仓库放在长路径或 OneDrive 深层目录容易踩坑，建议 `D:\tools\...`。
+- 符号链接：Windows 需开发者模式或管理员权限才可创建；macOS/Linux 正常。
+
+### 7. 平台特定问题
+
+**Windows**
+
+| 现象 | 原因 / 处理 |
+|---|---|
+| `python` 打开商店或提示"未找到 Python" | 装的是 Microsoft Store 存根。用 `py -3`，或改 `PATH` 让真 Python 优先 |
+| `doctor` 的 `torch` 红 | `python` 字段指向了 `standalone-env`（引导环境，无 torch），改成 `<root>/.venv/Scripts/python.exe` |
+| 服务地址变成 8189 | Desktop 端口冲突自动换端口；`port_scan` 已覆盖 8189–8192，一般无需干预 |
+| `.ps1` 里中文变乱码 / 报"字符串缺少终止符" | 文件缺 BOM（见 §6），用 VS Code 存成 "UTF-8 with BOM" |
+| 杀软拦截 `python.exe` 写文件 | 把仓库目录与输出目录加白名单 |
+| 路径含中文/空格时 `-p` 值被截断 | 加引号；避免用中文全角引号包裹 |
+
+**macOS**
+
+| 现象 | 原因 / 处理 |
+|---|---|
+| `python: command not found` | macOS 只有 `python3`；把命令里的 `python` 换成 `python3` |
+| `xcrun: error: invalid active developer path` | 装 Xcode Command Line Tools：`xcode-select --install` |
+| Homebrew Python 装了但找不到 | 确认 `brew --prefix python@3.12` 的 `bin` 在 `PATH` 里 |
+| 出图很慢 / 显存报错 | Apple Silicon 走 MPS，显存与 CUDA 不同；降低 `--width/--height` 或 `--resolution` |
+| `examples/*.ps1` 跑不了 | 需 `brew install --cask powershell`，然后用 `pwsh ./examples/batch_image.ps1` |
+| Desktop 找不到 workflows 目录 | 在 `~/Library/Application Support/ComfyUI` 下，`doctor` 会打印实际值 |
+
+**Linux**
+
+| 现象 | 原因 / 处理 |
+|---|---|
+| `python3 -m venv` 报 `ensurepip is not available` | `sudo apt install python3-venv`（或 `python3 -m venv` 前装 `python3-pip`） |
+| `doctor` 的 `python` 空/红 | 手动安装的 venv 叫 `venv/`，程序只自动探测 `.venv/`；在 `config.json` 里显式写 `venv/bin/python` |
+| Docker 里的 ComfyUI 连不上 | 容器需把端口映射到宿主机回环（`-p 127.0.0.1:8188:8188`）；跨机部署用 `COMFY_URL=http://host:8188` |
+| 产物下载失败 | 服务器在容器里但 `/view` 返回 404 → 检查 ComfyUI 的 `--output-directory` 与容器挂载 |
+| 以 root 跑完后续操作报权限拒绝 | 见 §6：不要用 sudo，把仓库与输出目录重新 `chown -R $USER` |
+| 无桌面环境 | 本工具本身不需要 GUI；只要 ComfyUI 服务在跑即可 |
+
+### 8. 子命令 × 平台
+
+| 子命令 | Windows | macOS | Linux | 备注 |
+|---|---|---|---|---|
+| `doctor` `wait` `list` `describe` `run` `register` `nodes` `interrupt` | ✅ | ✅ | ✅ | 纯 HTTP + 本地文件 |
+| `t2i` `i2i` | ✅ | ✅ | ✅ | 需 ComfyUI 侧有 Qwen-Image-2.1 节点与权重 |
+| `dub`（Ming-3.0-tts） | ✅ | ✅ | ✅ | 需 `ComfyUI-Ming-3-tts` 节点与 0.5B 权重 |
+| `tts`（SAPI5） | ✅ | ❌ | ❌ | 平台无 SAPI5；非 Windows 请改用 `dub` |
+| `cosyvoice3` | ✅ | ✅ | ✅ | 取决于 `TTS Audio Suite` 节点实现 |
+| `selftest.py` L1/L2 | ✅ | ✅ | ✅ | 离线，不需要服务 |
+| `selftest.py` L3 | ✅ | ⏭ SKIP | ⏭ SKIP | 非 Windows 自动跳过并标注 `SKIP` |
+| `selftest.py --live` | ✅ | ✅（TTS 项 SKIP） | ✅（TTS 项 SKIP） | 连接、配音、出图、图生图都会真跑 |
+
 ## 命令速查
 
 | 命令 | 作用 |
@@ -126,6 +350,8 @@ python scripts\comfy.py run my_t2i `
 | `list [--all] [--filter]` | 列出已登记别名；`--all` 同时扫描工作流目录 |
 | `describe <名字> [--schema f]` | 查看某工作流的节点、可绑定参数、预期产物 |
 | `run <名字> [-p K=V] [--seed] [--input-image] [--input-audio] [--out] [--dry-run] [--no-wait]` | 执行工作流 |
+| `t2i "<提示词>"` | 文生图（Qwen Image 2.1：`--width/--height/--steps/--seed/--out`） |
+| `i2i "<改法>" --image f` | 图生图 / 风格迁移（Qwen Image 2.1，参考图自动上传） |
 | `tts "<文本>"` | 便捷文生语音（TTS 工作流封装） |
 | `dub "<文本>"` | 拟真人配音 / 音色克隆（Ming-3.0-tts） |
 | `register <别名> --source ...` | 把已有工作流登记成可复用别名 |
@@ -176,6 +402,35 @@ python scripts\comfy.py register my_t2i --source user:qwen_image_t2i_api.json `
 
 详见 **[docs/workflows.md](docs/workflows.md)**。
 
+## 图像能力
+
+| 别名 | 能力 | 输出尺寸 | 依赖 |
+|---|---|---|---|
+| `t2i` | 文本 → 图像 | `--width` × `--height`（默认 1024²，原生支持到 2K） | ComfyUI 0.4x 自带 `TextEncodeQwenImage21` + Qwen Image 2.1 权重 |
+| `i2i` | 参考图 → 风格迁移 / 内容变换 | 跟随参考图比例，`--resolution` 控制缩放预算 | 同上 |
+
+```powershell
+# 文生图：任意宽高比，固定 seed 便于复现
+python scripts\comfy.py t2i "雨后的江南小巷，青石板路泛着微光，水彩风格" `
+  --width 1536 --height 864 --seed 42 --out .\图
+
+# 图生图：参考图自动上传，写「改成什么」而不是「画什么」
+python scripts\comfy.py i2i "把这张照片改成油画风格，保留人物五官与构图" `
+  --image .\photo.png --out .\图 --json
+
+# 换模型变体只改一个参数
+python scripts\comfy.py t2i "赛博朋克夜市" --model "qwen\qwen_image_2.1_bf16.safetensors" --out .\图
+```
+
+要点：
+
+- **i2i 与 SD 的 img2img 不同**：参考图是**条件**（`reference_latents` + 视觉塔 token），不是加噪起点。所以 `--denoise` 保持 1.0，调低不会更像原图；输出尺寸跟随参考图，改尺寸会让编辑偏移。
+- **低 CFG**：Qwen Image 2.1 用 `cfg=1.0`，照搬 SD 的 7 会糊。
+- **产物**：`SaveImageAdvanced` 输出 PNG（可 `--bit-depth 16-bit` / `--format`），自动下载到 `--out` 目录并返回 `files[]`。
+- ComfyUI 自带的 Qwen 模板图含**子图**（本工具拒绝转换），内置这两份是等价节点手写的 API 图，可离线校验、可 diff 修改后再 `register` 成新别名。
+
+模型、参数、排错细节见 **[docs/image.md](docs/image.md)**。
+
 ## 语音能力
 
 | 别名 | 链路 | 特点 | 依赖 |
@@ -224,17 +479,19 @@ python scripts\comfy.py dub --text-file .\lesson02.txt --ref-audio .\voice\teach
 ```
 comfyui-named-runner/
 ├── scripts/
-│   ├── comfy.py                  # CLI 入口（10 个子命令）
+│   ├── comfy.py                  # CLI 入口（12 个子命令）
 │   ├── comfy_client.py           # 可复用的客户端库：配置/连接/转换/绑定/下载
 │   ├── selftest.py               # 分层自检：离线结构 / 离线转换 / 本机 TTS / --live 联调
 │   └── workflows/                # 随仓库分发的 API 格式工作流（api: 源）
+│       ├── qwen_image_2_1_t2i.json    # 文生图（Qwen Image 2.1）
+│       ├── qwen_image_2_1_i2i.json    # 图生图（Qwen Image 2.1）
 │       ├── ming_dub_ip.json
 │       ├── ming_dub_clone.json
 │       └── tts_cosyvoice3_dub.json
 ├── registry.json                 # 别名路由表（别名 → 源文件 → 参数 → 默认值）
 ├── config.example.json           # 配置模板（复制为 config.json 使用）
 ├── docs/                         # 安装、CLI、配置、工作流、语音、HTTP 接口、架构、排错
-├── examples/                     # Python 内嵌调用、批量配音脚本、示例 UI 工作流
+├── examples/                     # Python 内嵌调用、批量出图/批量配音脚本、示例 UI 工作流
 ├── SKILL.md                      # 作为 AI Agent Skill 安装时的入口说明
 ├── CHANGELOG.md
 ├── LICENSE
@@ -286,6 +543,8 @@ python "$env:USERPROFILE\.codebuddy\skills\comfyui-local\scripts\comfy.py" run <
 | [docs/cli.md](docs/cli.md) | 全部子命令与参数、返回值结构、退出码 |
 | [docs/configuration.md](docs/configuration.md) | 配置优先级、全部配置键、环境变量、离线模式 |
 | [docs/workflows.md](docs/workflows.md) | 查找顺序、UI→API 转换规则、别名与参数绑定、实测兼容性 |
+| [docs/image.md](docs/image.md) | 文生图 / 图生图链路、Qwen Image 2.1 模型与参数、排错 |
+| [docs/qwen-image-prompting.md](docs/qwen-image-prompting.md) | Qwen-Image-2.1 提示词写法：官方 8 步结构、编辑规范、参数搭配、常见误区（含来源可信度） |
 | [docs/tts.md](docs/tts.md) | 三条语音链路、模型下载、音色一致性、批量配音 |
 | [docs/http-api.md](docs/http-api.md) | 用到的 ComfyUI HTTP 接口速查与失败对照 |
 | [docs/architecture.md](docs/architecture.md) | 模块划分、关键函数、如何扩展（新格式 / 新产物类型） |
@@ -299,15 +558,15 @@ python "$env:USERPROFILE\.codebuddy\skills\comfyui-local\scripts\comfy.py" run <
 - **平台**：Windows 为主要开发平台（SAPI 链路仅 Windows）；HTTP 与转换逻辑本身平台无关。
 - **已知限制**：
 
-  - 不支持含**子图**（`definitions.subgraphs`）的 UI 工作流 → 请在界面里展开子图或导出 API 格式。
+  - 不支持含**子图**（`definitions.subgraphs`）的 UI 工作流 → 请在界面里展开子图或导出 API 格式。ComfyUI 自带的 Qwen Image 2.1 模板正是这种，直接用内置的 `t2i` / `i2i` 即可。
   - 未安装节点类的工作流会被明确拒绝，而不是提交后报错。
   - 自定义节点若把显示标签写入控件值，UI→API 会产生错位，`describe` 会给 warning → 改用 API 格式。
 
 - **自检**：
 
   ```powershell
-  python scripts\selftest.py          # L1 结构 + L2 转换 + L3 本机 TTS（不需要服务在跑）
-  python scripts\selftest.py --live    # 额外：真实连接、比对 schema、跑一次 TTS
+  python scripts\selftest.py          # L1 结构 + L2 转换/绑定 + L3 本机 TTS（不需要服务在跑）
+  python scripts\selftest.py --live    # 额外：真实连接、比对 schema、跑一次 TTS + 一次配音 + 一次文生图 + 一次图生图
   ```
 
 ## 路线图
